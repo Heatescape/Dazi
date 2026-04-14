@@ -37,7 +37,7 @@ export function ActivityCard({ activity }: ActivityCardProps) {
           </div>
           <div className="text-right ml-3 flex-shrink-0">
             <div className={`text-sm font-semibold ${spotsLeft > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
-              还差 {spotsLeft} 人
+              {spotsLeft > 0 ? `还差 ${spotsLeft} 人` : '已满员'}
             </div>
             <div className="text-xs text-gray-400">{activity.creator?.display_name}</div>
           </div>

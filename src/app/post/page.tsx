@@ -160,7 +160,7 @@ export default function PostPage() {
         {/* Spots needed */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            还差几人（你已算在内）
+            还差几人（不含你）
           </label>
           <div className="flex items-center gap-4">
             <button

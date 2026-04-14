@@ -18,15 +18,25 @@ export function Channel({ activityId, currentUserId }: ChannelProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Load initial messages
+    // Load initial messages (fetch profiles separately — sender_id FK points to auth.users, not profiles)
     void (async () => {
-      const { data } = await supabase
+      const { data: msgData } = await supabase
         .from('channel_messages')
-        .select('*, sender:profiles!channel_messages_sender_id_fkey(user_id, display_name, avatar_url)')
+        .select('*')
         .eq('activity_id', activityId)
         .is('deleted_at', null)
         .order('sent_at', { ascending: true })
-      setMessages((data as ChannelMessage[]) ?? [])
+      const msgs = msgData ?? []
+      if (msgs.length > 0) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, avatar_url')
+          .in('user_id', [...new Set(msgs.map((m) => m.sender_id))])
+        const profileMap = Object.fromEntries((profileData ?? []).map((p) => [p.user_id, p]))
+        setMessages(msgs.map((m) => ({ ...m, sender: profileMap[m.sender_id] ?? null })) as ChannelMessage[])
+      } else {
+        setMessages([])
+      }
     })()
 
     // Subscribe to new messages
@@ -57,12 +67,14 @@ export function Channel({ activityId, currentUserId }: ChannelProps) {
   const handleSend = async () => {
     if (!text.trim() || sending) return
     setSending(true)
-    await supabase.from('channel_messages').insert({
+    const content = text.trim()
+    setText('')
+    const { error } = await supabase.from('channel_messages').insert({
       activity_id: activityId,
       sender_id: currentUserId,
-      content: text.trim(),
+      content,
     })
-    setText('')
+    if (error) setText(content) // restore on failure
     setSending(false)
   }
 

@@ -125,7 +125,10 @@ export default function AuthPage() {
 
         {step === 'otp' && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">验证码已发送到 {phone}</p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => { setStep('phone'); setError('') }} className="text-blue-600 text-sm">← 返回</button>
+              <p className="text-sm text-gray-600">验证码已发送到 {phone}</p>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">验证码</label>
               <input

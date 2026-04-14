@@ -86,7 +86,14 @@ export default function HomePage() {
             {loading ? (
               <div className="h-full bg-gray-200 rounded-lg animate-pulse" />
             ) : (
-              <Map activities={activities} />
+              <div className="relative h-full">
+                <Map activities={activities} />
+                {activities.length === 0 && (
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-md px-4 py-3 text-center text-sm text-gray-500 whitespace-nowrap">
+                    附近暂无活动，来发一个吧 👆
+                  </div>
+                )}
+              </div>
             )}
           </div>
         ) : (
