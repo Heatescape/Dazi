@@ -108,8 +108,8 @@ export default function AuthPage() {
                 <input
                   type="tel"
                   placeholder="412 345 678"
-                  value={localNumber}
-                  onChange={(e) => setLocalNumber(e.target.value.replace(/\D/g, ''))}
+                  value={localNumber.replace(/(\d{3})(\d{3})(\d{0,3})/, '$1 $2 $3').trim()}
+                  onChange={(e) => setLocalNumber(e.target.value.replace(/\D/g, '').slice(0, 9))}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendOtp()}
                   className="flex-1 px-3 py-3 text-sm text-gray-900 focus:outline-none bg-white"
                 />
