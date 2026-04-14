@@ -31,7 +31,7 @@ export function Channel({ activityId, currentUserId }: ChannelProps) {
         const { data: profileData } = await supabase
           .from('profiles')
           .select('user_id, display_name, avatar_url')
-          .in('user_id', [...new Set(msgs.map((m) => m.sender_id))])
+          .in('user_id', Array.from(new Set(msgs.map((m) => m.sender_id))))
         const profileMap = Object.fromEntries((profileData ?? []).map((p) => [p.user_id, p]))
         setMessages(msgs.map((m) => ({ ...m, sender: profileMap[m.sender_id] ?? null })) as ChannelMessage[])
       } else {
