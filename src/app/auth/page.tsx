@@ -12,7 +12,8 @@ export default function AuthPage() {
   const supabase = createClient()
   const router = useRouter()
   const [step, setStep] = useState<Step>('phone')
-  const [phone, setPhone] = useState('')
+  const [localNumber, setLocalNumber] = useState('')
+  const phone = `+61${localNumber}`
   const [otp, setOtp] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,12 +31,10 @@ export default function AuthPage() {
   }
 
   const handleSendOtp = async () => {
-    if (!phone.trim()) { setError('请输入手机号'); return }
+    if (!localNumber.trim()) { setError('请输入手机号'); return }
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: phone.startsWith('+') ? phone : `+${phone}`,
-    })
+    const { error } = await supabase.auth.signInWithOtp({ phone })
     setLoading(false)
     if (error) {
       setError('短信发送失败，请检查号码或稍后重试')
@@ -50,7 +49,7 @@ export default function AuthPage() {
     setLoading(true)
     setError('')
     const { data, error } = await supabase.auth.verifyOtp({
-      phone: phone.startsWith('+') ? phone : `+${phone}`,
+      phone,
       token: otp,
       type: 'sms',
     })
@@ -102,15 +101,19 @@ export default function AuthPage() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">手机号</label>
-              <input
-                type="tel"
-                placeholder="+61 4xx xxx xxx"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendOtp()}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="text-xs text-gray-400 mt-1">支持澳大利亚 (+61) 和中国 (+86) 手机号</p>
+              <div className="flex border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
+                <span className="bg-gray-50 border-r border-gray-300 px-3 flex items-center text-sm font-medium text-gray-700 select-none">
+                  🇦🇺 +61
+                </span>
+                <input
+                  type="tel"
+                  placeholder="412 345 678"
+                  value={localNumber}
+                  onChange={(e) => setLocalNumber(e.target.value.replace(/\D/g, ''))}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendOtp()}
+                  className="flex-1 px-3 py-3 text-sm text-gray-900 focus:outline-none bg-white"
+                />
+              </div>
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <button
@@ -127,7 +130,7 @@ export default function AuthPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <button onClick={() => { setStep('phone'); setError('') }} className="text-blue-600 text-sm">← 返回</button>
-              <p className="text-sm text-gray-600">验证码已发送到 {phone}</p>
+              <p className="text-sm text-gray-600">验证码已发送到 +61 {localNumber}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">验证码</label>
