@@ -62,15 +62,24 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
     import('mapbox-gl').then((mapboxgl) => {
       mapboxgl.default.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
+      // Restore last position if the user was already browsing the map
+      const saved = sessionStorage.getItem('mapState')
+      const initialCenter = saved ? JSON.parse(saved).center : center
+      const initialZoom = saved ? JSON.parse(saved).zoom : 14
+
       const map = new mapboxgl.default.Map({
         container: mapContainer.current!,
         style: 'mapbox://styles/mapbox/streets-v12',
-        center: center as [number, number],
-        zoom: 14,
+        center: initialCenter as [number, number],
+        zoom: initialZoom,
       })
 
       mapRef.current = map as unknown as MapInstance
       map.on('load', () => setMapReady(true))
+      map.on('moveend', () => {
+        const c = map.getCenter()
+        sessionStorage.setItem('mapState', JSON.stringify({ center: [c.lng, c.lat], zoom: map.getZoom() }))
+      })
 
       if (selectionMode) {
         map.getCanvas().style.cursor = 'crosshair'
