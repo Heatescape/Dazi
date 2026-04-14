@@ -14,7 +14,7 @@ interface MapProps {
 }
 
 type MapInstance = {
-  jumpTo: (opts: object) => void
+  flyTo: (opts: object) => void
   getCanvas: () => HTMLCanvasElement
   on: (event: string, handler: unknown) => void
   remove: () => void
@@ -28,6 +28,7 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [locationDenied, setLocationDenied] = useState(false)
   const [geoReady, setGeoReady] = useState(false)
+  const [mapReady, setMapReady] = useState(false)
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
 
   useEffect(() => {
@@ -69,6 +70,7 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
       })
 
       mapRef.current = map as unknown as MapInstance
+      map.on('load', () => setMapReady(true))
 
       if (selectionMode) {
         map.getCanvas().style.cursor = 'crosshair'
@@ -94,7 +96,7 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
   }, [geoReady, userLocation, selectionMode, onLocationSelect])
 
   useEffect(() => {
-    if (!mapRef.current || selectionMode) return
+    if (!mapReady || !mapRef.current || selectionMode) return
 
     import('mapbox-gl').then((mapboxgl) => {
       markersRef.current.forEach((m) => m.remove())
@@ -117,11 +119,11 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
         markersRef.current.push(marker)
       })
     })
-  }, [activities, selectionMode])
+  }, [activities, selectionMode, mapReady])
 
   const handleRecenter = () => {
     if (!mapRef.current || !userLocation) return
-    mapRef.current.jumpTo({ center: [userLocation.lng, userLocation.lat], zoom: 14 })
+    mapRef.current.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: 14 })
   }
 
   const spotsLeft = selectedActivity ? selectedActivity.spots_total - selectedActivity.spots_filled : 0
