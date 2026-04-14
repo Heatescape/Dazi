@@ -140,7 +140,7 @@ export default function AuthPage() {
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleVerifyOtp()}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -173,7 +173,7 @@ export default function AuthPage() {
                 onChange={(e) => setDisplayName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateProfile()}
                 maxLength={20}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}

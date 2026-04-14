@@ -52,7 +52,19 @@ export function Channel({ activityId, currentUserId }: ChannelProps) {
             .select('user_id, display_name, avatar_url')
             .eq('user_id', payload.new.sender_id)
             .single()
-          setMessages((prev) => [...prev, { ...payload.new, sender: sender as Profile } as ChannelMessage])
+          const newMsg = { ...payload.new, sender: sender as Profile } as ChannelMessage
+          setMessages((prev) => {
+            // Replace optimistic temp message if content + sender match
+            const tempIdx = prev.findIndex(
+              (m) => m.id.startsWith('temp-') && m.sender_id === newMsg.sender_id && m.content === newMsg.content
+            )
+            if (tempIdx !== -1) {
+              const next = [...prev]
+              next[tempIdx] = newMsg
+              return next
+            }
+            return [...prev, newMsg]
+          })
         }
       )
       .subscribe()
@@ -69,12 +81,27 @@ export function Channel({ activityId, currentUserId }: ChannelProps) {
     setSending(true)
     const content = text.trim()
     setText('')
+
+    // Optimistically add message so it appears immediately
+    const tempId = `temp-${Date.now()}`
+    setMessages((prev) => [...prev, {
+      id: tempId,
+      activity_id: activityId,
+      sender_id: currentUserId,
+      content,
+      sent_at: new Date().toISOString(),
+      deleted_at: null,
+    } as ChannelMessage])
+
     const { error } = await supabase.from('channel_messages').insert({
       activity_id: activityId,
       sender_id: currentUserId,
       content,
     })
-    if (error) setText(content) // restore on failure
+    if (error) {
+      setText(content)
+      setMessages((prev) => prev.filter((m) => m.id !== tempId))
+    }
     setSending(false)
   }
 
@@ -114,7 +141,7 @@ export function Channel({ activityId, currentUserId }: ChannelProps) {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
           placeholder="发消息..."
-          className="flex-1 border border-gray-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 border border-gray-200 rounded-full px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <button
           onClick={handleSend}

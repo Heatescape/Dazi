@@ -27,6 +27,18 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
     )
   }, [])
 
+  // Fly to user location once map is ready
+  useEffect(() => {
+    if (!mapRef.current || !userLocation) return
+    import('mapbox-gl').then(() => {
+      (mapRef.current as { flyTo: (opts: object) => void }).flyTo({
+        center: [userLocation.lng, userLocation.lat],
+        zoom: 14,
+        duration: 1200,
+      })
+    })
+  }, [userLocation])
+
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return
 
@@ -34,14 +46,10 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
     import('mapbox-gl').then((mapboxgl) => {
       mapboxgl.default.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
-      const center = userLocation
-        ? [userLocation.lng, userLocation.lat]
-        : [SYDNEY_CENTER.lng, SYDNEY_CENTER.lat]
-
       const map = new mapboxgl.default.Map({
         container: mapContainer.current!,
         style: 'mapbox://styles/mapbox/streets-v12',
-        center: center as [number, number],
+        center: [SYDNEY_CENTER.lng, SYDNEY_CENTER.lat],
         zoom: 13,
       })
 
@@ -71,7 +79,7 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
         })
       }
     })
-  }, [userLocation, selectionMode, onLocationSelect])
+  }, [selectionMode, onLocationSelect])
 
   // Update activity markers when activities change
   useEffect(() => {
