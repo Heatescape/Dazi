@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { Activity } from '@/lib/types'
 import { ACTIVITY_TYPE_LABELS, SYDNEY_CENTER } from '@/lib/types'
 import { useRouter } from 'next/navigation'
+import { format, formatDistanceToNow } from 'date-fns'
+import { zhCN } from 'date-fns/locale'
 
 interface MapProps {
   activities: Activity[]
@@ -26,9 +28,9 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [locationDenied, setLocationDenied] = useState(false)
   const [geoReady, setGeoReady] = useState(false)
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
 
   useEffect(() => {
-    // 5-second timeout so map doesn't hang indefinitely waiting for GPS
     const timer = setTimeout(() => {
       if (!geoReady) { setLocationDenied(true); setGeoReady(true) }
     }, 5000)
@@ -49,7 +51,6 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
     return () => clearTimeout(timer)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initialize map once we know the starting center
   useEffect(() => {
     if (!geoReady || !mapContainer.current || mapRef.current) return
 
@@ -92,7 +93,6 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
     })
   }, [geoReady, userLocation, selectionMode, onLocationSelect])
 
-  // Update activity markers when activities change
   useEffect(() => {
     if (!mapRef.current || selectionMode) return
 
@@ -102,7 +102,7 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
 
       activities.forEach((activity) => {
         const el = document.createElement('div')
-        el.className = 'cursor-pointer text-2xl'
+        el.className = 'cursor-pointer text-2xl select-none'
         el.innerHTML = ACTIVITY_TYPE_LABELS[activity.type].split(' ')[0]
         el.title = ACTIVITY_TYPE_LABELS[activity.type]
 
@@ -110,16 +110,21 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
           .setLngLat([activity.location_lng, activity.location_lat])
           .addTo(mapRef.current as unknown as mapboxgl.Map)
 
-        el.addEventListener('click', () => router.push(`/activity/${activity.id}`))
+        el.addEventListener('click', (e) => {
+          e.stopPropagation()
+          setSelectedActivity(activity)
+        })
         markersRef.current.push(marker)
       })
     })
-  }, [activities, selectionMode, router])
+  }, [activities, selectionMode])
 
   const handleRecenter = () => {
     if (!mapRef.current || !userLocation) return
     mapRef.current.jumpTo({ center: [userLocation.lng, userLocation.lat], zoom: 14 })
   }
+
+  const spotsLeft = selectedActivity ? selectedActivity.spots_total - selectedActivity.spots_filled : 0
 
   return (
     <div className="relative w-full h-full">
@@ -132,6 +137,8 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
         <div className="absolute inset-0 bg-gray-100 rounded-lg animate-pulse z-10" />
       )}
       <div ref={mapContainer} className="w-full h-full rounded-lg" />
+
+      {/* Recenter button */}
       {userLocation && (
         <button
           onClick={handleRecenter}
@@ -142,6 +149,55 @@ export default function Map({ activities, onLocationSelect, selectionMode = fals
             <path d="M12 2a7 7 0 0 1 7 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 0 1 7-7zm0 4.5A2.5 2.5 0 1 0 12 11.5 2.5 2.5 0 0 0 12 6.5z"/>
           </svg>
         </button>
+      )}
+
+      {/* Activity popup card */}
+      {selectedActivity && (
+        <>
+          {/* Backdrop tap to dismiss */}
+          <div className="absolute inset-0 z-20" onClick={() => setSelectedActivity(null)} />
+          <div className="absolute bottom-4 left-3 right-3 z-30 bg-white rounded-2xl shadow-xl p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{ACTIVITY_TYPE_LABELS[selectedActivity.type].split(' ')[0]}</span>
+                <span className="font-semibold text-gray-900">
+                  {ACTIVITY_TYPE_LABELS[selectedActivity.type].split(' ').slice(1).join(' ')}
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedActivity(null)}
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-2 flex-shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-1.5 mb-4">
+              <p className="text-sm text-gray-600 flex items-start gap-1.5">
+                <span className="flex-shrink-0">📍</span>
+                <span>{selectedActivity.location_name}</span>
+              </p>
+              <p className="text-sm text-gray-600">
+                🕐 {format(new Date(selectedActivity.activity_time), 'MM/dd HH:mm')}
+                <span className="text-gray-400 ml-1 text-xs">
+                  ({formatDistanceToNow(new Date(selectedActivity.activity_time), { locale: zhCN, addSuffix: true })})
+                </span>
+              </p>
+              <p className="text-sm">
+                <span className={spotsLeft > 0 ? 'text-blue-600 font-medium' : 'text-gray-400'}>
+                  {spotsLeft > 0 ? `还差 ${spotsLeft} 人` : '已满员'}
+                </span>
+              </p>
+            </div>
+
+            <button
+              onClick={() => router.push(`/activity/${selectedActivity.id}`)}
+              className="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-medium"
+            >
+              查看详情 →
+            </button>
+          </div>
+        </>
       )}
     </div>
   )
