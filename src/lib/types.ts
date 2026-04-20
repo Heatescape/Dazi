@@ -1,4 +1,4 @@
-export type ActivityType = 'mahjong' | 'badminton' | 'basketball' | 'bbq' | 'other'
+export type ActivityType = 'mahjong' | 'badminton' | 'basketball' | 'bbq' | 'hiking' | 'hotpot' | 'ktv' | 'boardgame' | 'study' | 'other'
 export type ActivityStatus = 'open' | 'full' | 'expired' | 'cancelled'
 
 export interface Profile {
@@ -46,6 +46,11 @@ export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
   badminton: '🏸 打羽毛球',
   basketball: '🏀 打篮球',
   bbq: '🍖 烧烤',
+  hiking: '🥾 徒步',
+  hotpot: '🍲 火锅',
+  ktv: '🎤 KTV',
+  boardgame: '🎲 桌游',
+  study: '📚 一起学习',
   other: '🎯 其他活动',
 }
 

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE TABLE IF NOT EXISTS public.activities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   creator_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('mahjong', 'badminton', 'basketball', 'bbq', 'other')),
+  type TEXT NOT NULL CHECK (type IN ('mahjong', 'badminton', 'basketball', 'bbq', 'hiking', 'hotpot', 'ktv', 'boardgame', 'study', 'other')),
   location_lat DOUBLE PRECISION NOT NULL,
   location_lng DOUBLE PRECISION NOT NULL,
   location_name TEXT NOT NULL,
@@ -93,6 +93,109 @@ CREATE POLICY "channel_messages_insert" ON public.channel_messages
         AND user_id = auth.uid()
     )
   );
+
+-- ============================================================
+-- RPC: Atomic join activity (prevents race condition)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.join_activity(p_activity_id UUID, p_user_id UUID)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_spots_filled INT;
+  v_spots_total INT;
+  v_status TEXT;
+BEGIN
+  -- Lock the activity row to prevent concurrent joins
+  SELECT spots_filled, spots_total, status
+    INTO v_spots_filled, v_spots_total, v_status
+    FROM public.activities
+   WHERE id = p_activity_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN 'not_found';
+  END IF;
+
+  IF v_status <> 'open' THEN
+    RETURN 'not_open';
+  END IF;
+
+  IF v_spots_filled >= v_spots_total THEN
+    RETURN 'full';
+  END IF;
+
+  -- Check if already a member
+  IF EXISTS (
+    SELECT 1 FROM public.activity_members
+     WHERE activity_id = p_activity_id AND user_id = p_user_id
+  ) THEN
+    RETURN 'already_member';
+  END IF;
+
+  -- Insert member
+  INSERT INTO public.activity_members (activity_id, user_id)
+  VALUES (p_activity_id, p_user_id);
+
+  -- Update spots and status atomically
+  UPDATE public.activities
+     SET spots_filled = v_spots_filled + 1,
+         status = CASE WHEN v_spots_filled + 1 >= v_spots_total THEN 'full' ELSE 'open' END
+   WHERE id = p_activity_id;
+
+  RETURN 'joined';
+END;
+$$;
+
+-- ============================================================
+-- RPC: Leave activity
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.leave_activity(p_activity_id UUID, p_user_id UUID)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_creator_id UUID;
+  v_spots_filled INT;
+BEGIN
+  SELECT creator_id, spots_filled
+    INTO v_creator_id, v_spots_filled
+    FROM public.activities
+   WHERE id = p_activity_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN 'not_found';
+  END IF;
+
+  -- Creator cannot leave (must cancel instead)
+  IF v_creator_id = p_user_id THEN
+    RETURN 'is_creator';
+  END IF;
+
+  -- Check membership
+  IF NOT EXISTS (
+    SELECT 1 FROM public.activity_members
+     WHERE activity_id = p_activity_id AND user_id = p_user_id
+  ) THEN
+    RETURN 'not_member';
+  END IF;
+
+  DELETE FROM public.activity_members
+   WHERE activity_id = p_activity_id AND user_id = p_user_id;
+
+  UPDATE public.activities
+     SET spots_filled = GREATEST(1, v_spots_filled - 1),
+         status = 'open'
+   WHERE id = p_activity_id;
+
+  RETURN 'left';
+END;
+$$;
 
 -- ============================================================
 -- Realtime: enable for channel_messages only

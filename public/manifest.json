@@ -1,0 +1,22 @@
+{
+  "name": "搭子 Dazi",
+  "short_name": "搭子",
+  "description": "悉尼华人活动搭配 — 找人打麻将、打球、烧烤",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

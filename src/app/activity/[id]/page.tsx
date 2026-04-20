@@ -21,6 +21,7 @@ export default function ActivityPage({ params }: { params: { id: string } }) {
   const [joinError, setJoinError] = useState('')
   const [tab, setTab] = useState<'info' | 'channel'>('info')
   const [notFound, setNotFound] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -92,39 +93,68 @@ export default function ActivityPage({ params }: { params: { id: string } }) {
     setJoinError('')
 
     try {
-      const { data: fresh } = await supabase
-        .from('activities')
-        .select('spots_filled, spots_total, status')
-        .eq('id', activity.id)
-        .single()
-
-      if (!fresh || fresh.status !== 'open' || fresh.spots_filled >= fresh.spots_total) {
-        setJoinError('活动已满，看看其他活动吧')
-        return
-      }
-
-      const { error } = await supabase.from('activity_members').insert({
-        activity_id: activity.id,
-        user_id: currentUserId,
+      const { data: result, error } = await supabase.rpc('join_activity', {
+        p_activity_id: activity.id,
+        p_user_id: currentUserId,
       })
 
       if (error) { setJoinError('加入失败，请重试'); return }
 
-      await supabase
-        .from('activities')
-        .update({
-          spots_filled: fresh.spots_filled + 1,
-          status: fresh.spots_filled + 1 >= fresh.spots_total ? 'full' : 'open',
-        })
-        .eq('id', activity.id)
-
-      setIsMember(true)
-      setActivity((prev) => prev ? { ...prev, spots_filled: fresh.spots_filled + 1 } : prev)
-      setTab('channel')
+      switch (result) {
+        case 'joined':
+          setIsMember(true)
+          setActivity((prev) => prev ? { ...prev, spots_filled: prev.spots_filled + 1 } : prev)
+          setTab('channel')
+          break
+        case 'full':
+        case 'not_open':
+          setJoinError('活动已满，看看其他活动吧')
+          break
+        case 'already_member':
+          setIsMember(true)
+          setTab('channel')
+          break
+        case 'not_found':
+          setJoinError('活动不存在')
+          break
+        default:
+          setJoinError('加入失败，请重试')
+      }
     } catch {
       setJoinError('网络错误，请重试')
     } finally {
       setJoining(false)
+    }
+  }
+
+  const handleCancel = async () => {
+    if (!activity || !currentUserId || currentUserId !== activity.creator_id) return
+    if (!confirm('确定取消活动吗？所有成员将收到通知。')) return
+    setActionLoading(true)
+    const { error } = await supabase
+      .from('activities')
+      .update({ status: 'cancelled' })
+      .eq('id', activity.id)
+    setActionLoading(false)
+    if (!error) {
+      setActivity((prev) => prev ? { ...prev, status: 'cancelled' as const } : prev)
+    }
+  }
+
+  const handleLeave = async () => {
+    if (!activity || !currentUserId) return
+    if (!confirm('确定退出活动吗？')) return
+    setActionLoading(true)
+    const { data: result, error } = await supabase.rpc('leave_activity', {
+      p_activity_id: activity.id,
+      p_user_id: currentUserId,
+    })
+    setActionLoading(false)
+    if (!error && result === 'left') {
+      setIsMember(false)
+      setMembers((prev) => prev.filter((m) => m.user_id !== currentUserId))
+      setActivity((prev) => prev ? { ...prev, spots_filled: prev.spots_filled - 1, status: 'open' } : prev)
+      setTab('info')
     }
   }
 
@@ -154,9 +184,33 @@ export default function ActivityPage({ params }: { params: { id: string } }) {
     <div className="h-screen flex flex-col bg-gray-50">
       <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-blue-600 text-sm">← 返回</button>
-        <span className="font-semibold text-gray-900">
+        <span className="font-semibold text-gray-900 flex-1">
           {ACTIVITY_TYPE_LABELS[activity.type]}
         </span>
+        <button
+          onClick={async () => {
+            const url = `${window.location.origin}/activity/${activity.id}`
+            const shareData = {
+              title: `搭子 - ${ACTIVITY_TYPE_LABELS[activity.type]}`,
+              text: `${ACTIVITY_TYPE_LABELS[activity.type]} | ${activity.location_name} | 还差${spotsLeft}人`,
+              url,
+            }
+            if (navigator.share) {
+              try { await navigator.share(shareData) } catch {}
+            } else {
+              await navigator.clipboard.writeText(url)
+              alert('链接已复制')
+            }
+          }}
+          className="text-gray-500 hover:text-gray-700 p-1"
+          title="分享"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+            <polyline points="16 6 12 2 8 6" />
+            <line x1="12" y1="2" x2="12" y2="15" />
+          </svg>
+        </button>
       </header>
 
       {isMember && (
@@ -227,9 +281,34 @@ export default function ActivityPage({ params }: { params: { id: string } }) {
               </div>
             )}
 
-            {isMember && (
-              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700">
-                ✓ 你已加入，去约局频道和大家打个招呼
+            {isMember && activity.status !== 'cancelled' && (
+              <div className="space-y-3">
+                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700">
+                  ✓ 你已加入，去约局频道和大家打个招呼
+                </div>
+                {currentUserId === activity.creator_id ? (
+                  <button
+                    onClick={handleCancel}
+                    disabled={actionLoading}
+                    className="w-full border border-red-200 text-red-600 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50"
+                  >
+                    {actionLoading ? '处理中...' : '取消活动'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleLeave}
+                    disabled={actionLoading}
+                    className="w-full border border-gray-200 text-gray-500 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50"
+                  >
+                    {actionLoading ? '处理中...' : '退出活动'}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {activity.status === 'cancelled' && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 text-center">
+                活动已取消
               </div>
             )}
 
